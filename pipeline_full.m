@@ -98,6 +98,27 @@ global_min = Inf;
 global_max = -Inf;
 results = struct();
 
+% Compute global min/max amplitude for standardizing y-axis
+for i = 1:length(subjects)
+    EEG = pop_loadset('filename', final_files{i}, 'filepath', data_path);
+    elec_idx = find(ismember({EEG.chanlocs.labels}, electrodes));
+
+    ERP_S1 = mean(EEG.data(elec_idx, :, strcmp({EEG.epoch.eventtype}, 'S1')), 3);
+    ERP_S2 = mean(EEG.data(elec_idx, :, strcmp({EEG.epoch.eventtype}, 'S2')), 3);
+    
+    % Update global min/max amplitude
+    global_min = min([global_min, min(ERP_S1(:)), min(ERP_S2(:))], [], 'omitnan');
+    global_max = max([global_max, max(ERP_S1(:)), max(ERP_S2(:))], [], 'omitnan');
+end
+
+% Ensure valid y-axis limits
+if global_min >= global_max || isnan(global_min) || isnan(global_max)
+    fprintf('Warning: Invalid y-axis range detected. Using default scaling.\n');
+    global_min = -5; % Set default range if values are invalid
+    global_max = 5;
+end
+
+% Create figures before looping through subjects
 figure_N2_electrodes = figure('Name', 'N2 Waveforms per Electrode', 'NumberTitle', 'off');
 figure_N2_avg = figure('Name', 'Averaged N2 Waveforms', 'NumberTitle', 'off');
 
@@ -109,6 +130,7 @@ for i = 1:length(subjects)
     ERP_S2 = mean(EEG.data(elec_idx, :, strcmp({EEG.epoch.eventtype}, 'S2')), 3);
     time_vector = EEG.times;
 
+    %% Plot N2 Waveforms Per Electrode (Single Figure for All Subjects)
     figure(figure_N2_electrodes);
     for j = 1:length(elec_idx)
         subplot(2,3, (i-1)*3 + j);
@@ -117,8 +139,10 @@ for i = 1:length(subjects)
         title(strrep([subjects{i} ' - ' electrodes{j}], '_', '\_'));
         xlabel('Time (ms)'); ylabel('Amplitude (µV)');
         legend('S1 (Congruent)', 'S2 (Incongruent)');
+        ylim([global_min, global_max]); % Apply consistent y-axis scaling
     end
 
+    %% Compute and Plot N2 Averaged Across Electrodes
     ERP_S1_avg = mean(ERP_S1, 1);
     ERP_S2_avg = mean(ERP_S2, 1);
 
@@ -129,6 +153,7 @@ for i = 1:length(subjects)
     title(strrep([subjects{i} ' - N2 (Averaged Fz, FCz, Cz)'], '_', '\_'));
     xlabel('Time (ms)'); ylabel('Amplitude (µV)');
     legend('S1 (Congruent)', 'S2 (Incongruent)');
+    ylim([global_min, global_max]); % Apply consistent y-axis scaling
 
     %% Compute Mean N2 Amplitude (200–350 ms)
     time_window = [200 350];
@@ -141,7 +166,10 @@ for i = 1:length(subjects)
     results.(subjects{i}) = struct('N2_S1', mean_N2_S1, 'N2_S2', mean_N2_S2);
 end
 
-% Display tables
+%% =========================== 5. Display Results in Tables ===========================
+fprintf('\n===== RESULTS =====\n');
+
+% Display Trial Counts Table
 T_trials = table(fieldnames(trial_counts), ...
                  structfun(@(x) x.S1, trial_counts), ...
                  structfun(@(x) x.S2, trial_counts), ...
@@ -149,11 +177,13 @@ T_trials = table(fieldnames(trial_counts), ...
 disp('Trial Counts Per Subject:');
 disp(T_trials);
 
+% Display Mean N2 Amplitudes Table
 T_results = table(fieldnames(results), ...
                   structfun(@(x) x.N2_S1, results), ...
                   structfun(@(x) x.N2_S2, results), ...
                   'VariableNames', {'Subject', 'N2_S1 (Congruent)', 'N2_S2 (Incongruent)'});
 disp('Mean N2 Amplitudes Per Subject:');
 disp(T_results);
+
 
 fprintf('\n===== PIPELINE COMPLETE =====\n');
