@@ -34,7 +34,7 @@ And this is a simplified example on how to place the pipeline scripts in order t
 ...
 ```
 
-After placing the `pipeline_full.m` in the eeglab directory, run in Matlab's console:
+After placing the `pipeline_full.m` in the EEGLAB directory, run in Matlab's console:
 ```
 pipeline_full
 ```
